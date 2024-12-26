@@ -1,61 +1,81 @@
-class Partie:
-    def __init__(self):
-        self.paquet = Paquet()
-        self.joueurs = [Joueur("Joueur"), Joueur("Banque")]
+from Paquet import Paquet
+from Joueur import Joueur
 
-    def distribuer_cartes_initiales(self):
-        for _ in range(2):
+class Blackjack:
+    def __init__(self, nombre_joueurs, fonds_initiaux=1000, nombre_paquets=6):
+        if not (1 <= nombre_joueurs <= 6):
+            raise ValueError("Le nombre de joueurs doit être entre 1 et 6.")
+        self.paquet = Paquet(nombre_paquets)
+        self.joueurs = [Joueur(f"Joueur {i+1}", fonds_initiaux) for i in range(nombre_joueurs)]
+        self.croupier = Joueur("Croupier", float('inf'))  # Le croupier n'a pas de fonds limités
+
+    def distribuer_cartes(self):
+        for _ in range(2):  # Deux cartes à chaque joueur et au croupier
             for joueur in self.joueurs:
-                joueur.ajouter_carte(self.paquet.piocher())
-
-    def afficher_etats(self):
-        for joueur in self.joueurs:
-            print(f"{joueur.nom} a : {joueur.afficher_main()} (valeur : {joueur.valeur_main()})")
+                joueur.recevoir_carte(self.paquet.tirer_carte())
+            self.croupier.recevoir_carte(self.paquet.tirer_carte())
 
     def tour_joueur(self, joueur):
         while joueur.valeur_main() < 21:
-            action = input(f"{joueur.nom}, voulez-vous piocher une carte ? (o/n) : ").lower()
-            if action == 'o':
-                joueur.ajouter_carte(self.paquet.piocher())
-                print(f"{joueur.nom} a maintenant : {joueur.afficher_main()} (valeur : {joueur.valeur_main()})")
+            print(joueur.afficher_main())
+            action = input(f"{joueur.nom}, voulez-vous tirer une carte (T) ou passer (P) ? ").strip().upper()
+            if action == 'T':
+                joueur.recevoir_carte(self.paquet.tirer_carte())
+            elif action == 'P':
+                break
             else:
+                print("Action non reconnue !")
+        print(joueur.afficher_main())
+
+    def tour_croupier(self):
+        print(self.croupier.afficher_main())
+        while self.croupier.valeur_main() < 17:
+            print("Le croupier tire une carte...")
+            self.croupier.recevoir_carte(self.paquet.tirer_carte())
+        print(self.croupier.afficher_main())
+
+    def regler_paris(self):
+        croupier_valeur = self.croupier.valeur_main()
+        for joueur in self.joueurs:
+            if joueur.valeur_main() > 21:
+                print(f"{joueur.nom} a dépassé 21. Pari perdu !")
+            elif croupier_valeur > 21 or joueur.valeur_main() > croupier_valeur:
+                gains = joueur.pari * 2
+                joueur.fonds += gains
+                print(f"{joueur.nom} gagne {gains}€ !")
+            elif joueur.valeur_main() == croupier_valeur:
+                joueur.fonds += joueur.pari
+                print(f"{joueur.nom} récupère sa mise.")
+            else:
+                print(f"{joueur.nom} perd sa mise.")
+            joueur.pari = 0  # Réinitialiser le pari
+
+    def vider_mains(self):
+        for joueur in self.joueurs:
+            joueur.vider_main()
+        self.croupier.vider_main()
+
+    def jouer_partie(self):
+        while True:
+            print("\n--- Nouvelle partie ---\n")
+            for joueur in self.joueurs:
+                print(f"{joueur.nom} : {joueur.fonds}€ disponibles.")
+                montant = int(input(f"{joueur.nom}, combien voulez-vous miser ? "))
+                joueur.miser(montant)
+
+            self.distribuer_cartes()
+            for joueur in self.joueurs:
+                self.tour_joueur(joueur)
+
+            self.tour_croupier()
+            self.regler_paris()
+            self.vider_mains()
+
+            if not any(joueur.fonds > 0 for joueur in self.joueurs):
+                print("Tous les joueurs sont à court de fonds. Fin du jeu !")
                 break
 
-    def tour_banque(self, joueur):
-        while joueur.valeur_main() < 17:
-            joueur.ajouter_carte(self.paquet.piocher())
-            print(f"La banque pioche une carte : {joueur.afficher_main()} (valeur : {joueur.valeur_main()})")
-
-    def determiner_gagnant(self):
-        joueur, banque = self.joueurs
-        score_joueur = joueur.valeur_main()
-        score_banque = banque.valeur_main()
-
-        if score_joueur > 21:
-            return "La banque gagne (le joueur a dépassé 21) !"
-        if score_banque > 21:
-            return "Le joueur gagne (la banque a dépassé 21) !"
-        if score_joueur > score_banque:
-            return "Le joueur gagne !"
-        elif score_joueur < score_banque:
-            return "La banque gagne !"
-        else:
-            return "Égalité !"
-
-    def jouer(self):
-        print("Bienvenue au Blackjack !")
-        self.distribuer_cartes_initiales()
-        self.afficher_etats()
-
-        # Tour du joueur
-        print("\n--- Tour du Joueur ---")
-        self.tour_joueur(self.joueurs[0])
-
-        # Tour de la banque
-        print("\n--- Tour de la Banque ---")
-        self.tour_banque(self.joueurs[1])
-
-        # Résultat
-        print("\n--- Résultat ---")
-        self.afficher_etats()
-        print(self.determiner_gagnant())
+            continuer = input("Voulez-vous continuer la partie (O/N) ? ").strip().upper()
+            if continuer != 'O':
+                print("Merci d'avoir joué !")
+                break
