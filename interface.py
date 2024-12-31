@@ -1,11 +1,49 @@
 import tkinter as tk
+from tkinter import messagebox
+from PIL import Image, ImageTk  # Pour gérer les images
 from Partie import Blackjack
+
 
 class BlackjackGUI:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Blackjack")
+        self.images = {}  # Dictionnaire pour stocker les images des cartes
+        self.load_card_images()
         self.setup_game()
+        self.joueur_courant = 0  # Ajout de l'attribut pour suivre le joueur courant
+
+
+    def load_card_images(self):
+        """Charge les images des cartes dans un dictionnaire."""
+        couleurs = ['Coeurs', 'Carreaux', 'Piques', 'Trefles']  # Utilisation de noms sans accents pour les fichiers
+        rangs = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
+        correspondances = {
+            'Coeurs': 'Cœurs',
+            'Carreaux': 'Carreaux',
+            'Piques': 'Piques',
+            'Trefles': 'Trèfles'
+        }
+
+        for couleur_sans_accent, couleur_avec_accent in correspondances.items():
+            for rang in rangs:
+                filename = f"images/{rang}_de_{couleur_sans_accent}.png"
+                try:
+                    image = Image.open(filename).resize((80, 120))
+                    self.images[f"{rang}_de_{couleur_avec_accent}"] = ImageTk.PhotoImage(image)
+                except FileNotFoundError:
+                    print(f"Image introuvable : {filename}")
+                except Exception as e:
+                    print(f"Erreur lors du chargement de {filename} : {e}")
+
+        # Ajouter une image pour le dos de la carte
+        try:
+            back_image = Image.open("images/back.png").resize((80, 120))
+            self.images["back"] = ImageTk.PhotoImage(back_image)
+        except FileNotFoundError:
+            print("Image introuvable : images/back.png")
+        except Exception as e:
+            print(f"Erreur lors du chargement de l'image du dos : {e}")
 
     def setup_game(self):
         self.nombre_joueurs = tk.IntVar(value=1)
@@ -28,94 +66,142 @@ class BlackjackGUI:
         tk.Button(self.setup_frame, text="Démarrer le jeu", command=self.start_game).pack()
 
     def start_game(self):
-        # Initialiser le jeu avec les paramètres
+        """Initialiser le jeu avec les paramètres donnés."""
         nombre_joueurs = self.nombre_joueurs.get()
         nombre_paquets = self.nombre_paquets.get()
         fonds_initiaux = self.fonds_initiaux.get()
 
         self.jeu = Blackjack(nombre_joueurs, fonds_initiaux, nombre_paquets)
+        self.current_player_index = 0  # Indice du joueur courant
         self.setup_frame.pack_forget()
         self.create_game_frame()
 
     def create_game_frame(self):
-        # Interface principale pour jouer
+        """Créer l'interface de jeu principale."""
         self.game_frame = tk.Frame(self.root)
         self.game_frame.pack()
 
-        self.joueur_labels = []
-        self.croupier_label = tk.Label(self.game_frame, text="Croupier")
-        self.croupier_label.pack()
-
+        # Affichage des joueurs
+        self.player_frames = []
         for joueur in self.jeu.joueurs:
-            joueur_label = tk.Label(self.game_frame, text=f"{joueur.nom} : {joueur.fonds}€")
-            joueur_label.pack()
-            self.joueur_labels.append(joueur_label)
+            frame = tk.Frame(self.game_frame)
+            frame.pack(side=tk.TOP, pady=10)
+            label = tk.Label(frame, text=f"{joueur.nom} : {joueur.fonds}€")
+            label.pack()
+            joueur.label = label  # Stocker le label dans l'objet joueur
+            joueur.cards_frame = tk.Frame(frame)
+            joueur.cards_frame.pack()
+            self.player_frames.append(frame)
 
-        tk.Button(self.game_frame, text="Jouer une manche", command=self.play_round).pack()
+        # Affichage du croupier
+        self.croupier_frame = tk.Frame(self.game_frame)
+        self.croupier_frame.pack(pady=20)
+        self.croupier_label = tk.Label(self.croupier_frame, text="Croupier")
+        self.croupier_label.pack()
+        self.croupier_cards_frame = tk.Frame(self.croupier_frame)
+        self.croupier_cards_frame.pack()
 
-    def play_round(self):
-        # Lancer une nouvelle manche
-        self.jeu.vider_mains()
-        self.jeu.distribuer_cartes()
-
-        # Commencer avec le premier joueur
-        self.show_player_turn(self.jeu.joueurs[0])
-
-    def show_player_turn(self, joueur):
-        """Afficher les options pour le tour d'un joueur."""
-        self.current_player = joueur
-        self.action_frame = tk.Frame(self.game_frame)
-        self.action_frame.pack()
-
-        self.status_label = tk.Label(
-            self.action_frame, text=f"{joueur.nom}, à votre tour ! (Valeur: {joueur.valeur_main()})"
-        )
-        self.status_label.pack()
+        # Boutons d'action
+        self.action_frame = tk.Frame(self.root)
+        self.action_frame.pack(pady=20)
 
         self.tirer_btn = tk.Button(self.action_frame, text="Tirer une carte", command=self.tirer_carte)
-        self.tirer_btn.pack()
+        self.tirer_btn.pack(side=tk.LEFT, padx=10)
 
         self.passer_btn = tk.Button(self.action_frame, text="Passer", command=self.passer_tour)
-        self.passer_btn.pack()
+        self.passer_btn.pack(side=tk.LEFT, padx=10)
+
+        self.stop_btn = tk.Button(self.action_frame, text="Arrêter le jeu", command=self.stop_game)
+        self.stop_btn.pack(side=tk.LEFT, padx=10)
+
+        self.play_round()
+
+    def play_round(self):
+        """Commencer une nouvelle manche."""
+        self.jeu.vider_mains()
+        self.jeu.distribuer_cartes()
+        self.update_display()
 
     def tirer_carte(self):
-        """Action : tirer une carte pour le joueur courant."""
-        self.current_player.recevoir_carte(self.jeu.paquet.tirer_carte())
-        self.status_label.config(
-            text=f"{self.current_player.nom}, valeur actuelle: {self.current_player.valeur_main()}"
-        )
+        """Tirer une carte pour le joueur courant."""
+        joueur_courant = self.jeu.joueurs[self.current_player_index]
+        joueur_courant.recevoir_carte(self.jeu.paquet.tirer_carte())
+        self.update_display()
 
-        if self.current_player.valeur_main() >= 21:
-            self.fin_tour()
+        # Vérifier si le joueur a dépassé 21
+        if joueur_courant.a_depasse_21():
+            messagebox.showinfo("Tour terminé", f"{joueur_courant.nom} a dépassé 21.")
+            self.passer_tour()
+
 
     def passer_tour(self):
-        """Action : passer le tour."""
-        self.fin_tour()
+        """Passer le tour du joueur courant."""
+        joueur_courant = self.jeu.joueurs[self.current_player_index]
 
-    def fin_tour(self):
-        """Terminer le tour actuel."""
-        self.action_frame.destroy()  # Supprimer les boutons d'action
-        if self.jeu.joueurs.index(self.current_player) < len(self.jeu.joueurs) - 1:
-            # Passer au prochain joueur
-            prochain_joueur = self.jeu.joueurs[self.jeu.joueurs.index(self.current_player) + 1]
-            self.show_player_turn(prochain_joueur)
+        # Si le joueur a dépassé 21, on passe immédiatement au joueur suivant ou au croupier
+        if joueur_courant.valeur_main() > 21:
+            messagebox.showinfo("Tour terminé", f"{joueur_courant.nom} a dépassé 21.")
+            self.current_player_index += 1  # Passer au joueur suivant
+
+        # Si c'est le dernier joueur, on passe au croupier
+        elif self.current_player_index == len(self.jeu.joueurs) - 1:
+            self.tour_du_croupier()
         else:
-            # Tous les joueurs ont joué, c'est au tour du croupier
-            self.tour_croupier()
+            self.current_player_index += 1  # Passer au joueur suivant
 
-    def tour_croupier(self):
-        """Gérer le tour du croupier."""
-        self.jeu.tour_croupier()
-        self.jeu.regler_paris()
-        self.update_labels()
+        self.update_display()
 
-    def update_labels(self):
-        # Met à jour les fonds et cartes affichés
-        for i, joueur in enumerate(self.jeu.joueurs):
-            self.joueur_labels[i].config(
-                text=f"{joueur.nom} : {joueur.fonds}€ - {joueur.afficher_main()}"
-            )
-        self.croupier_label.config(text=f"Croupier : {self.jeu.croupier.afficher_main()}")
+
+    def tour_du_croupier(self):
+        """Lance le tour du croupier après que les joueurs ont terminé."""
+        self.jeu.tour_croupier()  # Appelle la méthode tour_croupier du jeu
+        self.update_display()  # Mets à jour l'affichage après le tour du croupier
+        self.regler_paris()  # Gère les paris après le tour du croupier
+        self.fin_de_partie()  # Vérifie si la partie est terminée
+
+        
+    def a_depasse_21(self):
+        """Retourne True si le joueur a dépassé 21."""
+        return self.calculer_score() > 21
+        
+    def terminer_manche(self):
+        """Afficher les résultats de la manche et relancer une nouvelle."""
+        resultats = self.jeu.determiner_resultats()
+        message = "\n".join(resultats)
+        messagebox.showinfo("Résultats de la manche", message)
+
+        # Redémarrer une nouvelle manche
+        if messagebox.askyesno("Nouvelle manche", "Voulez-vous jouer une nouvelle manche ?"):
+            self.current_player_index = 0
+            self.play_round()
+        else:
+            self.stop_game()
+
+
+
+    def stop_game(self):
+        """Arrêter le jeu."""
+        self.root.destroy()
+
+    def update_display(self):
+        """Met à jour l'affichage des cartes et des fonds."""
+        # Mise à jour des cartes des joueurs
+        for joueur in self.jeu.joueurs:
+            for widget in joueur.cards_frame.winfo_children():
+                widget.destroy()
+            for carte in joueur.main:
+                image = self.images[str(carte)]
+                label = tk.Label(joueur.cards_frame, image=image)
+                label.pack(side=tk.LEFT)
+
+        # Mise à jour des cartes du croupier
+        for widget in self.croupier_cards_frame.winfo_children():
+            widget.destroy()
+        for carte in self.jeu.croupier.main:
+            image = self.images[str(carte)]
+            label = tk.Label(self.croupier_cards_frame, image=image)
+            label.pack(side=tk.LEFT)
+
 
     def run(self):
         self.root.mainloop()

@@ -28,15 +28,19 @@ class Blackjack:
         print(joueur.afficher_main())
 
     def tour_croupier(self):
+        """Logique du tour du croupier."""
         print(self.croupier.afficher_main())
         while self.croupier.valeur_main() < 17:
             print("Le croupier tire une carte...")
             self.croupier.recevoir_carte(self.paquet.tirer_carte())
         print(self.croupier.afficher_main())
 
+
+
     def regler_paris(self):
-        croupier_valeur = self.croupier.valeur_main()
-        for joueur in self.joueurs:
+        """Régler les paris des joueurs après le tour du croupier."""
+        croupier_valeur = self.jeu.croupier.valeur_main()
+        for joueur in self.jeu.joueurs:
             if joueur.valeur_main() > 21:
                 print(f"{joueur.nom} a dépassé 21. Pari perdu !")
             elif croupier_valeur > 21 or joueur.valeur_main() > croupier_valeur:
@@ -49,6 +53,13 @@ class Blackjack:
             else:
                 print(f"{joueur.nom} perd sa mise.")
             joueur.pari = 0  # Réinitialiser le pari
+
+    def fin_de_partie(self):
+        """Vérifie si la partie est terminée."""
+        if not any(joueur.fonds > 0 for joueur in self.jeu.joueurs):
+            print("Tous les joueurs sont à court de fonds. Fin du jeu !")
+            self.stop_game()
+
 
     def vider_mains(self):
         for joueur in self.joueurs:
